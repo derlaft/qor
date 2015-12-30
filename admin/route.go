@@ -31,8 +31,14 @@ func (middleware Middleware) Next(context *Context) {
 
 // Router contains registered routers
 type Router struct {
-	Prefix      string
-	routers     map[string][]routeHandler
+	Prefix                  string
+	routers                 map[string][]routeHandler
+	generatedRoutersCounter struct {
+		get    int
+		post   int
+		put    int
+		delete int
+	}
 	middlewares []*Middleware
 }
 
@@ -50,23 +56,48 @@ func (r *Router) Use(handler func(*Context, *Middleware)) {
 	r.middlewares = append(r.middlewares, &Middleware{Handler: handler})
 }
 
+func appendRoute(count int, routers []routeHandler, route routeHandler) []routeHandler {
+	cur := (len(routers) - count)
+	return append(append(routers[0:cur], route), routers[cur:]...)
+}
+
 // Get register a GET request handle with the given path
 func (r *Router) Get(path string, handle requestHandler, config ...RouteConfig) {
+	r.routers["GET"] = appendRoute(r.generatedRoutersCounter.get, r.routers["GET"], newRouteHandler(path, handle, config...))
+}
+
+func (r *Router) get(path string, handle requestHandler, config ...RouteConfig) {
+	r.generatedRoutersCounter.get++
 	r.routers["GET"] = append(r.routers["GET"], newRouteHandler(path, handle, config...))
 }
 
 // Post register a POST request handle with the given path
 func (r *Router) Post(path string, handle requestHandler, config ...RouteConfig) {
+	r.routers["POST"] = appendRoute(r.generatedRoutersCounter.post, r.routers["POST"], newRouteHandler(path, handle, config...))
+}
+
+func (r *Router) post(path string, handle requestHandler, config ...RouteConfig) {
+	r.generatedRoutersCounter.post++
 	r.routers["POST"] = append(r.routers["POST"], newRouteHandler(path, handle, config...))
 }
 
 // Put register a PUT request handle with the given path
 func (r *Router) Put(path string, handle requestHandler, config ...RouteConfig) {
+	r.routers["PUT"] = appendRoute(r.generatedRoutersCounter.put, r.routers["PUT"], newRouteHandler(path, handle, config...))
+}
+
+func (r *Router) put(path string, handle requestHandler, config ...RouteConfig) {
+	r.generatedRoutersCounter.put++
 	r.routers["PUT"] = append(r.routers["PUT"], newRouteHandler(path, handle, config...))
 }
 
 // Delete register a DELETE request handle with the given path
 func (r *Router) Delete(path string, handle requestHandler, config ...RouteConfig) {
+	r.routers["DELETE"] = append(r.routers["DELETE"], newRouteHandler(path, handle, config...))
+}
+
+func (r *Router) delete(path string, handle requestHandler, config ...RouteConfig) {
+	r.generatedRoutersCounter.delete++
 	r.routers["DELETE"] = append(r.routers["DELETE"], newRouteHandler(path, handle, config...))
 }
 
@@ -79,8 +110,8 @@ func (admin *Admin) MountTo(mountTo string, mux *http.ServeMux) {
 	admin.compile()
 
 	controller := &controller{admin}
-	router.Get("", controller.Dashboard)
-	router.Get("/!search", controller.SearchCenter)
+	router.get("/", controller.Dashboard)
+	router.get("/!search", controller.SearchCenter)
 
 	var registerResourceToRouter func(*Resource, ...string)
 	registerResourceToRouter = func(res *Resource, modes ...string) {
@@ -107,13 +138,13 @@ func (admin *Admin) MountTo(mountTo string, mux *http.ServeMux) {
 			if mode == "create" {
 				if !res.Config.Singleton {
 					// New
-					router.Get(path.Join(prefix, "new"), controller.New, RouteConfig{
+					router.get(path.Join(prefix, "new"), controller.New, RouteConfig{
 						PermissionMode: roles.Create,
 						Resource:       res,
 					})
 
 					// Create
-					router.Post(prefix, controller.Create, RouteConfig{
+					router.post(prefix, controller.Create, RouteConfig{
 						PermissionMode: roles.Create,
 						Resource:       res,
 					})
@@ -123,19 +154,19 @@ func (admin *Admin) MountTo(mountTo string, mux *http.ServeMux) {
 			if mode == "read" {
 				if res.Config.Singleton {
 					// Index
-					router.Get(prefix, controller.Show, RouteConfig{
+					router.get(prefix, controller.Show, RouteConfig{
 						PermissionMode: roles.Read,
 						Resource:       res,
 					})
 				} else {
 					// Index
-					router.Get(prefix, controller.Index, RouteConfig{
+					router.get(prefix, controller.Index, RouteConfig{
 						PermissionMode: roles.Read,
 						Resource:       res,
 					})
 
 					// Show
-					router.Get(path.Join(prefix, primaryKey), controller.Show, RouteConfig{
+					router.get(path.Join(prefix, primaryKey), controller.Show, RouteConfig{
 						PermissionMode: roles.Read,
 						Resource:       res,
 					})
@@ -145,38 +176,38 @@ func (admin *Admin) MountTo(mountTo string, mux *http.ServeMux) {
 			if mode == "update" {
 				if res.Config.Singleton {
 					// Update
-					router.Put(prefix, controller.Update, RouteConfig{
+					router.put(prefix, controller.Update, RouteConfig{
 						PermissionMode: roles.Update,
 						Resource:       res,
 					})
 
 					// Action
 					for _, action := range res.actions {
-						router.Post(path.Join(prefix, action.Name), controller.Action, RouteConfig{
+						router.post(path.Join(prefix, action.Name), controller.Action, RouteConfig{
 							PermissionMode: roles.Update,
 							Resource:       res,
 						})
 					}
 				} else {
 					// Edit
-					router.Get(path.Join(prefix, primaryKey, "edit"), controller.Edit, RouteConfig{
+					router.get(path.Join(prefix, primaryKey, "edit"), controller.Edit, RouteConfig{
 						PermissionMode: roles.Update,
 						Resource:       res,
 					})
 
 					// Update
-					router.Post(path.Join(prefix, primaryKey), controller.Update, RouteConfig{
+					router.post(path.Join(prefix, primaryKey), controller.Update, RouteConfig{
 						PermissionMode: roles.Update,
 						Resource:       res,
 					})
-					router.Put(path.Join(prefix, primaryKey), controller.Update, RouteConfig{
+					router.put(path.Join(prefix, primaryKey), controller.Update, RouteConfig{
 						PermissionMode: roles.Update,
 						Resource:       res,
 					})
 
 					// Action
 					for _, action := range res.actions {
-						router.Post(path.Join(prefix, primaryKey, action.Name), controller.Action, RouteConfig{
+						router.post(path.Join(prefix, primaryKey, action.Name), controller.Action, RouteConfig{
 							PermissionMode: roles.Update,
 							Resource:       res,
 						})
@@ -187,7 +218,7 @@ func (admin *Admin) MountTo(mountTo string, mux *http.ServeMux) {
 			if mode == "delete" {
 				if !res.Config.Singleton {
 					// Delete
-					router.Delete(path.Join(prefix, primaryKey), controller.Delete, RouteConfig{
+					router.delete(path.Join(prefix, primaryKey), controller.Delete, RouteConfig{
 						PermissionMode: roles.Delete,
 						Resource:       res,
 					})
@@ -216,10 +247,10 @@ func (admin *Admin) MountTo(mountTo string, mux *http.ServeMux) {
 	}
 
 	for _, res := range admin.resources {
+		res.configure()
 		if !res.Config.Invisible {
 			registerResourceToRouter(res, "create", "read", "update", "delete")
 		}
-		res.configure()
 	}
 
 	mux.Handle(prefix, admin)     // /:prefix

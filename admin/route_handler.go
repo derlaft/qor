@@ -16,6 +16,7 @@ type RouteConfig struct {
 	Permission     *roles.Permission
 	PermissionMode roles.PermissionMode
 	Values         map[interface{}]interface{}
+	generated      bool
 }
 
 type routeHandler struct {
