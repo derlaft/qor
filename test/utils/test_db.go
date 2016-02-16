@@ -32,5 +32,9 @@ func TestDB() *gorm.DB {
 		panic(err)
 	}
 
+	if os.Getenv("DEBUG") != "" {
+		db = db.Debug()
+	}
+
 	return db
 }
